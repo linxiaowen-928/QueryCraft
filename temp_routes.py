@@ -1,6 +1,7 @@
 """
 API路由
 """
+
 from fastapi import APIRouter, HTTPException
 from datetime import datetime
 from typing import Dict, Any
@@ -150,7 +151,6 @@ async def execute_sql(name: str, sql: str, limit: int = 1000):
     
     try:
         result = await connector.execute(sql, limit)
-        return result
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
 
@@ -225,77 +225,3 @@ async def list_table_columns(name: str, table: str):
         return {"table": table, "columns": columns}
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
-
-
-# ========== 查询历史 ==========
-from app.services.query_history import query_history
-from typing import Optional
-
-@router.get("/history", tags=["查询历史"])
-async def get_query_history(limit: int = 50, datasource: Optional[str] = None, favorite_only: bool = False):
-    history = query_history.get_history(limit=limit, datasource=datasource, favorite_only=favorite_only)
-    return {"history": [{"id": item.id, "query": item.query, "dialect": item.dialect, "generated_sql": item.generated_sql, "datasource": item.datasource, "timestamp": item.timestamp, "favorite": item.favorite, "execution_time_ms": item.execution_time_ms, "success": item.success} for item in history]}
-
-@router.post("/history", tags=["查询历史"])
-async def add_query_history(query: str, dialect: str, generated_sql: str, datasource: str, execution_time_ms: int = 0, success: bool = True, error: Optional[str] = None):
-    item = query_history.add_query(query=query, dialect=dialect, generated_sql=generated_sql, datasource=datasource, execution_time_ms=execution_time_ms, success=success, error=error)
-    return {"status": "success", "id": item.id}
-
-@router.post("/history/{query_id}/favorite", tags=["查询历史"])
-async def toggle_favorite(query_id: str):
-    result = query_history.toggle_favorite(query_id)
-    if result is None: raise HTTPException(status_code=404, detail="Query not found")
-    return {"favorite": result}
-
-@router.delete("/history/{query_id}", tags=["查询历史"])
-async def delete_query_history(query_id: str):
-    success = query_history.delete_history(query_id)
-    if not success: raise HTTPException(status_code=404, detail="Query not found")
-    return {"status": "success"}
-
-@router.delete("/history", tags=["查询历史"])
-async def clear_query_history(datasource: Optional[str] = None):
-    query_history.clear_history(datasource)
-    return {"status": "success"}
-
-@router.get("/history/search", tags=["查询历史"])
-async def search_history(keyword: str, limit: int = 20):
-    results = query_history.search_history(keyword, limit)
-    return {"results": [{"id": item.id, "query": item.query, "generated_sql": item.generated_sql, "timestamp": item.timestamp} for item in results]}
-
-@router.get("/history/statistics", tags=["查询历史"])
-async def get_history_statistics():
-    return query_history.get_statistics()
-
-
-# ========== 学习服务 ==========
-from app.services.learning_service import learning_service
-
-@router.post("/feedback", tags=["学习"])
-async def add_feedback(query: str, original_sql: str, corrected_sql: Optional[str] = None, feedback_text: Optional[str] = None, datasource: str = ""):
-    """添加用户反馈"""
-    feedback = learning_service.add_feedback(query=query, original_sql=original_sql, corrected_sql=corrected_sql, feedback_text=feedback_text, datasource=datasource)
-    return {"status": "success", "id": feedback.id}
-
-@router.get("/feedback", tags=["学习"])
-async def get_feedback_list(limit: int = 50, datasource: Optional[str] = None):
-    """获取反馈列表"""
-    feedback_list = learning_service.get_feedback(limit=limit, datasource=datasource)
-    return {"feedback": [{"id": f.id, "query": f.query, "original_sql": f.original_sql, "corrected_sql": f.corrected_sql, "feedback_text": f.feedback_text, "timestamp": f.timestamp} for f in feedback_list]}
-
-@router.get("/knowledge", tags=["学习"])
-async def get_knowledge_list(limit: int = 50, min_confidence: float = 0.0):
-    """获取知识库"""
-    knowledge_list = learning_service.get_knowledge(limit=limit, min_confidence=min_confidence)
-    return {"knowledge": [{"id": k.id, "key_term": k.key_term, "mapped_table": k.mapped_table, "mapped_field": k.mapped_field, "description": k.description, "confidence": k.confidence, "usage_count": k.usage_count} for k in knowledge_list]}
-
-@router.post("/knowledge", tags=["学习"])
-async def add_knowledge_item(key_term: str, mapped_table: str, mapped_field: Optional[str] = None, description: Optional[str] = None, confidence: float = 0.8):
-    """手动添加知识"""
-    knowledge = learning_service.add_knowledge(key_term=key_term, mapped_table=mapped_table, mapped_field=mapped_field, description=description, confidence=confidence)
-    return {"status": "success", "id": knowledge.id}
-
-@router.get("/learning/statistics", tags=["学习"])
-async def get_learning_statistics_item():
-    """获取学习统计"""
-    return learning_service.get_statistics()
