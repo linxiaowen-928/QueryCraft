@@ -1,26 +1,95 @@
 version: '3.8'
 
 services:
-  nl2sql:
-    build: ./backend
+  # ============================================
+  # 后端 API 服务
+  # ============================================
+  api:
+    build:
+      context: ./backend
+      dockerfile: Dockerfile
+    container_name: querycraft-api
     ports:
-      - "8080:8000"
+      - "${API_PORT:-8080}:8000"
     environment:
       - LLM_PROVIDER=${LLM_PROVIDER:-openai}
       - LLM_MODEL=${LLM_MODEL:-gpt-4}
       - LLM_API_KEY=${LLM_API_KEY:-}
+      - LLM_BASE_URL=${LLM_BASE_URL:-}
+      - LOG_LEVEL=${LOG_LEVEL:-info}
+      - DATABASE_URL=${DATABASE_URL:-}
+    env_file:
+      - ./backend/.env
+    volumes:
+      - ./backend:/app
     restart: unless-stopped
     healthcheck:
       test: ["CMD", "curl", "-f", "http://localhost:8000/api/v1/health"]
       interval: 30s
       timeout: 10s
       retries: 3
+      start_period: 10s
+    networks:
+      - querycraft-network
 
+  # ============================================
   # 可选：MySQL 测试数据库
-  # mysql:
-  #   image: mysql:8
-  #   environment:
-  #     MYSQL_ROOT_PASSWORD: root
-  #     MYSQL_DATABASE: test
-  #   ports:
-  #     - "3306:3306"
+  # ============================================
+  mysql:
+    image: mysql:8.0
+    container_name: querycraft-mysql
+    environment:
+      MYSQL_ROOT_PASSWORD: ${MYSQL_ROOT_PASSWORD:-root}
+      MYSQL_DATABASE: ${MYSQL_DATABASE:-test}
+      MYSQL_USER: ${MYSQL_USER:-querycraft}
+      MYSQL_PASSWORD: ${MYSQL_PASSWORD:-querycraft}
+    ports:
+      - "${MYSQL_PORT:-3306}:3306"
+    volumes:
+      - mysql-data:/var/lib/mysql
+      - ./init-sql:/docker-entrypoint-initdb.d
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "mysqladmin", "ping", "-h", "localhost"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+    networks:
+      - querycraft-network
+
+  # ============================================
+  # 可选：PostgreSQL 测试数据库
+  # ============================================
+  postgres:
+    image: postgres:15-alpine
+    container_name: querycraft-postgres
+    environment:
+      POSTGRES_USER: ${POSTGRES_USER:-querycraft}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-querycraft}
+      POSTGRES_DB: ${POSTGRES_DB:-test}
+    ports:
+      - "${POSTGRES_PORT:-5432}:5432"
+    volumes:
+      - postgres-data:/var/lib/postgresql/data
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-querycraft}"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+    networks:
+      - querycraft-network
+
+# ============================================
+# 网络配置
+# ============================================
+networks:
+  querycraft-network:
+    driver: bridge
+
+# ============================================
+# 卷配置
+# ============================================
+volumes:
+  mysql-data:
+  postgres-data:
