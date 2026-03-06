@@ -266,7 +266,6 @@ async def search_history(keyword: str, limit: int = 20):
 async def get_history_statistics():
     return query_history.get_statistics()
 
-
 # ========== 学习服务 ==========
 from app.services.learning_service import learning_service
 
@@ -293,38 +292,6 @@ async def add_knowledge_item(key_term: str, mapped_table: str, mapped_field: Opt
     """手动添加知识"""
     knowledge = learning_service.add_knowledge(key_term=key_term, mapped_table=mapped_table, mapped_field=mapped_field, description=description, confidence=confidence)
     return {"status": "success", "id": knowledge.id}
-
-@router.get("/knowledge/search", tags=["学习"])
-async def search_knowledge_item(keyword: str):
-    """搜索知识"""
-    results = learning_service.search_knowledge(keyword)
-    return {"results": [{"id": k.id, "key_term": k.key_term, "mapped_table": k.mapped_table, "confidence": k.confidence} for k in results]}
-
-@router.delete("/knowledge/{knowledge_id}", tags=["学习"])
-async def delete_knowledge_item(knowledge_id: str):
-    """删除知识"""
-    success = learning_service.delete_knowledge(knowledge_id)
-    if not success: raise HTTPException(status_code=404, detail="Knowledge not found")
-    return {"status": "success"}
-
-@router.post("/sessions/{session_id}", tags=["学习"])
-async def create_session_item(session_id: str, datasource: str):
-    """创建会话"""
-    session = learning_service.create_session(session_id, datasource)
-    return {"status": "success", "session_id": session.session_id}
-
-@router.get("/sessions/{session_id}", tags=["学习"])
-async def get_session_context_item(session_id: str):
-    """获取会话上下文（用于SQL生成）"""
-    context = learning_service.get_session_context(session_id)
-    if not context: raise HTTPException(status_code=404, detail="Session not found")
-    return context
-
-@router.put("/sessions/{session_id}/context", tags=["学习"])
-async def update_session_context_item(session_id: str, context: Dict[str, Any]):
-    """更新会话上下文"""
-    learning_service.update_session_context(session_id, context)
-    return {"status": "success"}
 
 @router.get("/learning/statistics", tags=["学习"])
 async def get_learning_statistics_item():
