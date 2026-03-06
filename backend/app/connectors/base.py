@@ -64,3 +64,23 @@ class BaseConnector(ABC):
     def dialect(self) -> str:
         """SQL方言"""
         pass
+
+    @abstractmethod
+    async def get_database_name(self) -> str:
+        """获取数据库名称"""
+        pass
+
+    @abstractmethod
+    async def get_tables(self) -> List[str]:
+        """获取所有表名"""
+        pass
+
+    @abstractmethod
+    async def get_columns(self, table_name: str) -> List[Dict[str, Any]]:
+        """获取表的列信息"""
+        pass
+
+    @abstractmethod
+    async def get_table_comment(self, table_name: str) -> Optional[str]:
+        """获取表的注释"""
+        pass

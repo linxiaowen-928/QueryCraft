@@ -1,0 +1,13 @@
+{
+  "name": "github-issue-automator",
+  "version": "1.0.0",
+  "description": "自动处理 GitHub Issues，提交 PR 协助开发",
+  "repository": "linxiaowen-928/QueryCraft",
+  "ssh_alias": "github-collab",
+  "github_user": "linxClawBot",
+  "check_interval_hours": 1,
+  "labels_to_process": [],
+  "max_issues_per_run": 3,
+  "work_dir": "/home/linx/code/QueryCraft",
+  "reviewer": "linxiaowen-928"
+}
