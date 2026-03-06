@@ -222,6 +222,46 @@ async def list_table_columns(name: str, table: str):
     
     try:
         columns = await connector.get_columns(table)
-        return {"table": table, "columns": columns}
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
+
+
+# ========== 查询历史 ==========
+from app.services.query_history import query_history
+from typing import Optional
+
+@router.get("/history", tags=["查询历史"])
+async def get_query_history(limit: int = 50, datasource: Optional[str] = None, favorite_only: bool = False):
+    history = query_history.get_history(limit=limit, datasource=datasource, favorite_only=favorite_only)
+    return {"history": [{"id": item.id, "query": item.query, "dialect": item.dialect, "generated_sql": item.generated_sql, "datasource": item.datasource, "timestamp": item.timestamp, "favorite": item.favorite, "execution_time_ms": item.execution_time_ms, "success": item.success} for item in history]}
+
+@router.post("/history", tags=["查询历史"])
+async def add_query_history(query: str, dialect: str, generated_sql: str, datasource: str, execution_time_ms: int = 0, success: bool = True, error: Optional[str] = None):
+    item = query_history.add_query(query=query, dialect=dialect, generated_sql=generated_sql, datasource=datasource, execution_time_ms=execution_time_ms, success=success, error=error)
+    return {"status": "success", "id": item.id}
+
+@router.post("/history/{query_id}/favorite", tags=["查询历史"])
+async def toggle_favorite(query_id: str):
+    result = query_history.toggle_favorite(query_id)
+    if result is None: raise HTTPException(status_code=404, detail="Query not found")
+    return {"favorite": result}
+
+@router.delete("/history/{query_id}", tags=["查询历史"])
+async def delete_query_history(query_id: str):
+    success = query_history.delete_history(query_id)
+    if not success: raise HTTPException(status_code=404, detail="Query not found")
+    return {"status": "success"}
+
+@router.delete("/history", tags=["查询历史"])
+async def clear_query_history(datasource: Optional[str] = None):
+    query_history.clear_history(datasource)
+    return {"status": "success"}
+
+@router.get("/history/search", tags=["查询历史"])
+async def search_history(keyword: str, limit: int = 20):
+    results = query_history.search_history(keyword, limit)
+    return {"results": [{"id": item.id, "query": item.query, "generated_sql": item.generated_sql, "timestamp": item.timestamp} for item in results]}
+
+@router.get("/history/statistics", tags=["查询历史"])
+async def get_history_statistics():
+    return query_history.get_statistics()

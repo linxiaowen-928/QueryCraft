@@ -86,8 +86,74 @@ node cli.js work <issue-number>
 5. 实现修改
 6. git push github-collab <branch> (推送分支)
 7. gh pr create (创建 PR)
-8. 等待 @linxiaowen-928 审查
+8. 继续处理下一个 Issue
+9. 定期检查 PR 状态，响应审查意见
 ```
+
+## PR 状态监控（重要）
+
+提交 PR 后，需要定期检查 PR 状态并响应审查意见。
+
+### 检查频率
+- 每 30 分钟检查一次已提交的 PR 状态
+- 或在空闲时间主动检查
+
+### 检查命令
+
+```bash
+# 列出自己提交的 PR
+gh pr list --repo linxiaowen-928/QueryCraft --author @me --state open
+
+# 查看 PR 详情和评论
+gh pr view <pr-number> --repo linxiaowen-928/QueryCraft
+
+# 查看 PR 的审查评论
+gh api repos/linxiaowen-928/QueryCraft/pulls/<pr-number>/comments
+```
+
+### PR 审查结果处理
+
+| 状态 | 操作 |
+|------|------|
+| **APPROVED** ✅ | 等待合并，无需操作 |
+| **CHANGES_REQUESTED** ❌ | 根据审查意见修改代码，重新提交 |
+| **COMMENTED** 💬 | 回复评论或说明情况 |
+
+### CR 未通过时的操作流程
+
+1. **读取审查评论**
+   ```bash
+   gh pr view <pr-number> --repo linxiaowen-928/QueryCraft
+   ```
+
+2. **切换到对应分支**
+   ```bash
+   cd ~/code/QueryCraft
+   git checkout issue/<number>-<title>
+   git pull github-collab issue/<number>-<title>
+   ```
+
+3. **修改代码**
+   - 根据审查意见逐一修改
+   - 本地测试确认修改正确
+
+4. **提交修改**
+   ```bash
+   git add .
+   git commit -m "fix: 根据审查意见修改 <具体内容>"
+   git push github-collab issue/<number>-<title>
+   ```
+
+5. **回复审查评论**（如需要）
+   ```bash
+   gh pr comment <pr-number> --repo linxiaowen-928/QueryCraft --body "已修复，请重新审查"
+   ```
+
+### 重要提示
+
+- **不要等待 PR 合并**：提交 PR 后继续处理其他 Issue
+- **及时响应审查**：发现审查意见后尽快处理
+- **保持分支整洁**：一个 PR 对应一个 Issue，不要混合多个功能
 
 ## 账户说明
 
