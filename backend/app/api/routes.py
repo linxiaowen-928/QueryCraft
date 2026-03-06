@@ -4,6 +4,7 @@ API路由
 
 from fastapi import APIRouter, HTTPException
 from datetime import datetime
+from typing import Dict, Any
 
 from app.models import (
     GenerateRequest,
@@ -14,6 +15,7 @@ from app.models import (
 )
 from app.services import generator
 from app.config import settings
+from app.connectors import manager, ConnectionConfig, create_connector
 
 router = APIRouter()
 
@@ -98,3 +100,56 @@ async def validate_sql(request: ValidateRequest):
         errors=errors,
         warnings=warnings
     )
+
+
+# ========== 数据源管理 ==========
+
+@router.get("/datasources", tags=["数据源"])
+async def list_datasources():
+    """列出所有数据源"""
+    return manager.list_datasources()
+
+
+@router.post("/datasources/{name}/connect", tags=["数据源"])
+async def connect_datasource(name: str, config: ConnectionConfig, connector_type: str = "mysql"):
+    """连接数据源"""
+    try:
+        connector = create_connector(config, connector_type)
+        manager.register(name, connector)
+        success = await connector.connect()
+        
+        if success:
+            return {"status": "connected", "name": name, "type": connector_type}
+        else:
+            raise HTTPException(status_code=500, detail="Connection failed")
+            
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@router.get("/datasources/{name}/schema", tags=["数据源"])
+async def get_datasource_schema(name: str):
+    """获取数据源Schema"""
+    connector = manager.get(name)
+    if not connector:
+        raise HTTPException(status_code=404, detail=f"Datasource '{name}' not found")
+    
+    try:
+        schema = await connector.get_schema()
+        return schema
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@router.post("/datasources/{name}/execute", tags=["数据源"])
+async def execute_sql(name: str, sql: str, limit: int = 1000):
+    """在数据源上执行SQL"""
+    connector = manager.get(name)
+    if not connector:
+        raise HTTPException(status_code=404, detail=f"Datasource '{name}' not found")
+    
+    try:
+        result = await connector.execute(sql, limit)
+        return result
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
