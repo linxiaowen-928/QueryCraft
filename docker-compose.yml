@@ -1,0 +1,26 @@
+version: '3.8'
+
+services:
+  nl2sql:
+    build: ./backend
+    ports:
+      - "8080:8000"
+    environment:
+      - LLM_PROVIDER=${LLM_PROVIDER:-openai}
+      - LLM_MODEL=${LLM_MODEL:-gpt-4}
+      - LLM_API_KEY=${LLM_API_KEY:-}
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8000/api/v1/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+
+  # 可选：MySQL 测试数据库
+  # mysql:
+  #   image: mysql:8
+  #   environment:
+  #     MYSQL_ROOT_PASSWORD: root
+  #     MYSQL_DATABASE: test
+  #   ports:
+  #     - "3306:3306"
