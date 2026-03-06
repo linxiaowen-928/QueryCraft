@@ -265,3 +265,68 @@ async def search_history(keyword: str, limit: int = 20):
 @router.get("/history/statistics", tags=["查询历史"])
 async def get_history_statistics():
     return query_history.get_statistics()
+
+
+# ========== 学习服务 ==========
+from app.services.learning_service import learning_service
+
+@router.post("/feedback", tags=["学习"])
+async def add_feedback(query: str, original_sql: str, corrected_sql: Optional[str] = None, feedback_text: Optional[str] = None, datasource: str = ""):
+    """添加用户反馈"""
+    feedback = learning_service.add_feedback(query=query, original_sql=original_sql, corrected_sql=corrected_sql, feedback_text=feedback_text, datasource=datasource)
+    return {"status": "success", "id": feedback.id}
+
+@router.get("/feedback", tags=["学习"])
+async def get_feedback_list(limit: int = 50, datasource: Optional[str] = None):
+    """获取反馈列表"""
+    feedback_list = learning_service.get_feedback(limit=limit, datasource=datasource)
+    return {"feedback": [{"id": f.id, "query": f.query, "original_sql": f.original_sql, "corrected_sql": f.corrected_sql, "feedback_text": f.feedback_text, "timestamp": f.timestamp} for f in feedback_list]}
+
+@router.get("/knowledge", tags=["学习"])
+async def get_knowledge_list(limit: int = 50, min_confidence: float = 0.0):
+    """获取知识库"""
+    knowledge_list = learning_service.get_knowledge(limit=limit, min_confidence=min_confidence)
+    return {"knowledge": [{"id": k.id, "key_term": k.key_term, "mapped_table": k.mapped_table, "mapped_field": k.mapped_field, "description": k.description, "confidence": k.confidence, "usage_count": k.usage_count} for k in knowledge_list]}
+
+@router.post("/knowledge", tags=["学习"])
+async def add_knowledge_item(key_term: str, mapped_table: str, mapped_field: Optional[str] = None, description: Optional[str] = None, confidence: float = 0.8):
+    """手动添加知识"""
+    knowledge = learning_service.add_knowledge(key_term=key_term, mapped_table=mapped_table, mapped_field=mapped_field, description=description, confidence=confidence)
+    return {"status": "success", "id": knowledge.id}
+
+@router.get("/knowledge/search", tags=["学习"])
+async def search_knowledge_item(keyword: str):
+    """搜索知识"""
+    results = learning_service.search_knowledge(keyword)
+    return {"results": [{"id": k.id, "key_term": k.key_term, "mapped_table": k.mapped_table, "confidence": k.confidence} for k in results]}
+
+@router.delete("/knowledge/{knowledge_id}", tags=["学习"])
+async def delete_knowledge_item(knowledge_id: str):
+    """删除知识"""
+    success = learning_service.delete_knowledge(knowledge_id)
+    if not success: raise HTTPException(status_code=404, detail="Knowledge not found")
+    return {"status": "success"}
+
+@router.post("/sessions/{session_id}", tags=["学习"])
+async def create_session_item(session_id: str, datasource: str):
+    """创建会话"""
+    session = learning_service.create_session(session_id, datasource)
+    return {"status": "success", "session_id": session.session_id}
+
+@router.get("/sessions/{session_id}", tags=["学习"])
+async def get_session_context_item(session_id: str):
+    """获取会话上下文（用于SQL生成）"""
+    context = learning_service.get_session_context(session_id)
+    if not context: raise HTTPException(status_code=404, detail="Session not found")
+    return context
+
+@router.put("/sessions/{session_id}/context", tags=["学习"])
+async def update_session_context_item(session_id: str, context: Dict[str, Any]):
+    """更新会话上下文"""
+    learning_service.update_session_context(session_id, context)
+    return {"status": "success"}
+
+@router.get("/learning/statistics", tags=["学习"])
+async def get_learning_statistics_item():
+    """获取学习统计"""
+    return learning_service.get_statistics()
