@@ -19,16 +19,17 @@ services:
       - LOG_LEVEL=${LOG_LEVEL:-info}
       - DATABASE_URL=${DATABASE_URL:-}
     env_file:
-      - ./backend/.env
+      - .env  # Make sure this file exists
     volumes:
-      - ./backend:/app
-    restart: unless-stopped
+      - ./backend:/app  # For development only, remove in production
+      # Create .env file based on .env.example before running
     healthcheck:
-      test: ["CMD", "curl", "-f", "http://localhost:8000/api/v1/health"]
+      test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://localhost:8000/api/v1/health')"]
       interval: 30s
       timeout: 10s
       retries: 3
       start_period: 10s
+
     networks:
       - querycraft-network
 
@@ -47,8 +48,9 @@ services:
       - "${MYSQL_PORT:-3306}:3306"
     volumes:
       - mysql-data:/var/lib/mysql
-      - ./init-sql:/docker-entrypoint-initdb.d
-    restart: unless-stopped
+      # Uncomment the line below if you have initialization SQL files
+      # - ./init-sql:/docker-entrypoint-initdb.d
+
     healthcheck:
       test: ["CMD", "mysqladmin", "ping", "-h", "localhost"]
       interval: 30s
