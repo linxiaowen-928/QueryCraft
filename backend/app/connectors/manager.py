@@ -5,6 +5,7 @@
 from typing import Dict, Optional
 from .base import BaseConnector, ConnectionConfig
 from .mysql import MySQLConnector
+from .postgresql import PostgreSQLConnector
 
 
 class ConnectorManager:
@@ -50,7 +51,7 @@ def create_connector(config: ConnectionConfig, connector_type: str) -> BaseConne
     """创建连接器"""
     connectors = {
         "mysql": MySQLConnector,
-        # "postgresql": PostgreSQLConnector,
+        "postgresql": PostgreSQLConnector,
         # "hive": HiveConnector,
     }
     
