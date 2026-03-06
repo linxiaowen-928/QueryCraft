@@ -1,14 +1,14 @@
 # CODEOWNERS - 代码审查权限配置
 # https://docs.github.com/en/repositories/managing-your-repositorys-settings-and-features/customizing-your-repository/about-code-owners
 
-# 所有代码变更需要审查
-* @linxiaowen-928 @linxClawBot
+# 所有代码变更需要 @linxiaowen-928 审查
+* @linxiaowen-928
 
 # 后端代码
-/backend/ @linxiaowen-928 @linxClawBot
+/backend/ @linxiaowen-928
 
 # CLI 工具
-/cli/ @linxiaowen-928 @linxClawBot
+/cli/ @linxiaowen-928
 
 # 配置文件
 /.github/ @linxiaowen-928
