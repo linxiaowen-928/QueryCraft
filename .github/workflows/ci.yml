@@ -1,0 +1,35 @@
+name: CI
+
+on:
+  pull_request:
+    branches: [main]
+  push:
+    branches: [main]
+
+jobs:
+  lint:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.10'
+      
+      - name: Install dependencies
+        run: |
+          cd backend
+          pip install -r requirements.txt
+          pip install ruff pytest
+      
+      - name: Lint with ruff
+        run: |
+          cd backend
+          ruff check . --exit-zero
+      
+      - name: Check syntax
+        run: |
+          cd backend
+          python -m py_compile app/main.py
+          python -m py_compile app/config.py
