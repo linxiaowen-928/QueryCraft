@@ -78,12 +78,13 @@ async def validate_sql(request: ValidateRequest):
     
     if "DELETE" in sql and "WHERE" not in sql:
         warnings.append("DELETE 语句缺少 WHERE 条件，可能删除所有数据")
-        security_score -= 20
-    
+        errors.append("DELETE 语句缺少 WHERE 条件，存在安全隐患")  # 安全隐患视为错误
+        security_score -= 50
+
     if "UPDATE" in sql and "WHERE" not in sql:
         warnings.append("UPDATE 语句缺少 WHERE 条件，可能更新所有数据")
-        security_score -= 20
-    
+        errors.append("UPDATE 语句缺少 WHERE 条件，存在安全隐患")  # 安全隐患视为错误
+        security_score -= 50
     # 语义检查（简化）
     semantic_score = 85
     
@@ -150,6 +151,77 @@ async def execute_sql(name: str, sql: str, limit: int = 1000):
     
     try:
         result = await connector.execute(sql, limit)
-        return result
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+# ========== Schema 发现 ==========
+from app.services.schema_discovery import schema_discovery
+
+@router.post("/datasources/{name}/refresh-schema", tags=["Schema"])
+async def refresh_datasource_schema(name: str):
+    """刷新数据源Schema"""
+    connector = manager.get(name)
+    if not connector:
+        raise HTTPException(status_code=404, detail=f"Datasource '{name}' not found")
+    
+    try:
+        # 发现数据库结构
+        db_info = await schema_discovery.discover_database(connector)
+        
+        return {
+            "status": "success",
+            "database": schema_discovery.to_dict(db_info)
+        }
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@router.get("/datasources/{name}/schema-detail", tags=["Schema"])
+async def get_datasource_schema_detail(name: str):
+    """获取数据源详细Schema（带缓存）"""
+    connector = manager.get(name)
+    if not connector:
+        raise HTTPException(status_code=404, detail=f"Datasource '{name}' not found")
+    
+    try:
+        # 先检查缓存
+        db_name = await connector.get_database_name()
+        cached = schema_discovery.get_schema(db_name)
+        
+        if cached:
+            return schema_discovery.to_dict(cached)
+        
+        # 如果没有缓存，刷新
+        db_info = await schema_discovery.discover_database(connector)
+        return schema_discovery.to_dict(db_info)
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@router.get("/datasources/{name}/tables", tags=["Schema"])
+async def list_datasource_tables(name: str):
+    """列出数据源的所有表"""
+    connector = manager.get(name)
+    if not connector:
+        raise HTTPException(status_code=404, detail=f"Datasource '{name}' not found")
+    
+    try:
+        tables = await connector.get_tables()
+        return {"tables": tables}
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@router.get("/datasources/{name}/tables/{table}/columns", tags=["Schema"])
+async def list_table_columns(name: str, table: str):
+    """列出表的列信息"""
+    connector = manager.get(name)
+    if not connector:
+        raise HTTPException(status_code=404, detail=f"Datasource '{name}' not found")
+    
+    try:
+        columns = await connector.get_columns(table)
+        return {"table": table, "columns": columns}
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
