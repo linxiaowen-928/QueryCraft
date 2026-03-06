@@ -140,3 +140,60 @@ class MySQLConnector(BaseConnector):
             await self.pool.wait_closed()
             self.pool = None
         self.connected = False
+
+    async def get_database_name(self) -> str:
+        """获取数据库名称"""
+        return self.config.database
+
+    async def get_tables(self) -> List[str]:
+        """获取所有表名"""
+        if not self.pool:
+            raise RuntimeError("Not connected")
+        
+        async with self.pool.acquire() as conn:
+            async with conn.cursor() as cur:
+                await cur.execute("SHOW TABLES")
+                tables = await cur.fetchall()
+                return [table[0] for table in tables]
+
+    async def get_columns(self, table_name: str) -> List[Dict[str, Any]]:
+        """获取表的列信息"""
+        if not self.pool:
+            raise RuntimeError("Not connected")
+        
+        async with self.pool.acquire() as conn:
+            async with conn.cursor() as cur:
+                # 获取列信息
+                await cur.execute(f"DESCRIBE `{table_name}`")
+                columns = await cur.fetchall()
+                
+                result = []
+                for col in columns:
+                    result.append({
+                        "name": col[0],
+                        "type": col[1],
+                        "nullable": col[2] == "YES",
+                        "is_primary_key": col[3] == "PRI",
+                        "is_foreign_key": col[3] == "MUL",
+                        "default": col[4],
+                        "comment": col[5] if len(col) > 5 else None
+                    })
+                
+                return result
+
+    async def get_table_comment(self, table_name: str) -> Optional[str]:
+        """获取表的注释"""
+        if not self.pool:
+            raise RuntimeError("Not connected")
+        
+        async with self.pool.acquire() as conn:
+            async with conn.cursor() as cur:
+                sql = f"""
+                    SELECT TABLE_COMMENT 
+                    FROM information_schema.TABLES 
+                    WHERE TABLE_SCHEMA = '{self.config.database}' 
+                    AND TABLE_NAME = '{table_name}'
+                """
+                await cur.execute(sql)
+                result = await cur.fetchone()
+                return result[0] if result else None
