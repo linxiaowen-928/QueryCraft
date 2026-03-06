@@ -78,12 +78,13 @@ async def validate_sql(request: ValidateRequest):
     
     if "DELETE" in sql and "WHERE" not in sql:
         warnings.append("DELETE 语句缺少 WHERE 条件，可能删除所有数据")
-        security_score -= 20
-    
+        errors.append("DELETE 语句缺少 WHERE 条件，存在安全隐患")  # 安全隐患视为错误
+        security_score -= 50
+
     if "UPDATE" in sql and "WHERE" not in sql:
         warnings.append("UPDATE 语句缺少 WHERE 条件，可能更新所有数据")
-        security_score -= 20
-    
+        errors.append("UPDATE 语句缺少 WHERE 条件，存在安全隐患")  # 安全隐患视为错误
+        security_score -= 50
     # 语义检查（简化）
     semantic_score = 85
     
