@@ -83,15 +83,32 @@ querycraft/
 
 ```bash
 # 克隆项目
-git clone https://github.com/openclaw/querycraft.git
-cd querycraft
+git clone https://github.com/linxiaowen-928/QueryCraft.git
+cd QueryCraft
 
 # 使用 Docker 启动
 docker-compose up -d
 
-# 或手动启动
+# 或手动启动（推荐使用虚拟环境）
 cd backend
+
+# 创建虚拟环境
+python -m venv venv
+
+# 激活虚拟环境
+# Windows:
+venv\Scripts\activate
+# Linux/macOS:
+source venv/bin/activate
+
+# 安装依赖
 pip install -r requirements.txt
+
+# 配置环境变量
+cp .env.example .env
+# 编辑 .env 文件，填入你的 API Key
+
+# 启动服务
 uvicorn app.main:app --host 0.0.0.0 --port 8000
 ```
 
