@@ -7,10 +7,9 @@ from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 from datetime import datetime
 from app.config import settings
-
-from app.api import router as v1_router
-from app.api.version import VersionedAPI, ApiVersion, create_version_negotiation_middleware
-from app.api.version import VersionedAPI, ApiVersion, create_version_negotiation_middleware
+from app.api import router
+from app.api import versioned_routes
+from app.api.version import ApiVersion, VersionedAPI, create_version_negotiation_middleware
 
 def create_app() -> FastAPI:
     """创建FastAPI应用"""
@@ -31,30 +30,23 @@ def create_app() -> FastAPI:
         allow_methods=["*"],
         allow_headers=["*"]
     )
-    
-    from app.api.version import ApiVersion
-    
-    # 注册版本路由
+
+    # 设置API版本管理
+    from app.api.v2_routes import v2_router
+    from app.api.versioned_routes import setup_versioned_routes
+    # 注册版本化的API路由
     version_manager = VersionedAPI()
     
     # 设置当前 v1 版本路由器（包含所有现有API）
-    version_manager.register_version(ApiVersion.V1, v1_router)
-    
-    # 从 v2_routes 导入新路由器并注册
-    try:
-        from app.api.v2_routes import v2_router
-        # 注册版本化的API路由
-        version_manager.register_version(ApiVersion.V2, v2_router)  # v2 包含新特性
-        # 创建版本化应用程序
-        version_manager.create_versioned_app(app)
-    except ImportError as e:
-        print(f"注意: 无法加载 v2 路由 ({e})，回退到 v1")
-        # 如果无法导入 v2_router，则回退到原来的路由
-        app.include_router(v1_router, prefix="/api/v1")
-    
-    # 添加版本协商中间件
-    create_version_negotiation_middleware(app)
-    
+    version_manager.register_version(ApiVersion.V1, v1_router, prefix='/api/v1')
+    # 注册v2版本，包含更多功能和更好的置信度评估机制
+    version_manager.register_version(ApiVersion.V2, v2_router, prefix='/api/v2')
+    # 创建版本化应用程序
+    version_manager.create_versioned_app(app)
+
+    # 添加版本协商中间件以根据请求头等确定应使用哪个版本
+    app.middleware('http')(create_version_negotiation_middleware)
+
     @app.get("/", tags=["根"])
     async def root():
         """根路径，添加支持的版本信息"""
@@ -65,7 +57,7 @@ def create_app() -> FastAPI:
             "api_versions": [ApiVersion.V1.value, ApiVersion.V2.value],  # 支持的API版本
             "timestamp": datetime.utcnow().isoformat()
         }
-    
+
     return app
 
 

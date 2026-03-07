@@ -36,6 +36,10 @@ class Settings(BaseSettings):
     secret_key: str = "change-me-in-production"
     access_token_expire_minutes: int = 30
 
+    # API Version 控制
+    min_api_version: str = "v1"
+    max_api_version: str = "v3"
+    support_deprecated_versions: bool = True
 
 @lru_cache()
 def get_settings() -> Settings:
