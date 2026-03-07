@@ -2,6 +2,8 @@
 API路由
 """
 
+from fastapi.security import HTTPBearer
+from fastapi import Depends
 from fastapi import APIRouter, HTTPException
 from datetime import datetime
 from typing import Dict, Any
@@ -18,6 +20,9 @@ from app.services import generator
 from app.connectors import manager, ConnectionConfig, create_connector
 
 router = APIRouter()
+# Define security scheme for protected endpoints
+security_scheme = HTTPBearer()
+
 
 
 @router.get("/health", response_model=HealthResponse, tags=["系统"])
@@ -31,10 +36,10 @@ async def health_check():
     )
 
 
+# @PerformanceMonitor("/generate") <- This decorator was incorrectly applied to metrics endpoint, moving it to the proper generate function
 @PerformanceMonitor("/generate")
 
-@router.get("/metrics", tags=["性能"])
-async def get_performance_metrics():
+@router.get("/metrics", tags=["性能"], dependencies=[Depends(security_scheme)])
     """获取性能指标"""
     return {
         "api_metrics": perf_metrics.get_api_metrics(),
@@ -43,6 +48,7 @@ async def get_performance_metrics():
     }
 
 
+@PerformanceMonitor("/generate")
 @router.post("/generate", response_model=GenerateResponse, tags=["SQL生成"])
 async def generate_sql(request: GenerateRequest):
     """

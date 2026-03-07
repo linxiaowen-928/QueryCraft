@@ -314,5 +314,161 @@ async def connect_datasource(name: str, config: ConnectionConfig, connector_type
         raise HTTPException(status_code=500, detail=str(e))
 
 
-# Import and include other routes from routes.py for consistency
-from .routes import *  # noqa: F401,F403  - Import remaining routes to maintain backward compatibility
+# ========== SHARE DATASOURCE MANAGEMENT ROUTES ACROSS VERSIONS ==========
+
+# Rather than repeating the same route definitions, we implement shared functions
+
+
+# SHARED DATASOURCE MANAGEMENT ROUTES DEFINITION
+def add_datasource_routes_to_router(router, prefix=""):
+    '''
+    Adds common datasource management routes to the provided router
+    '''
+    
+    @router.get(prefix + "/datasources", tags=["数据源"])
+    async def list_datasources():
+        """列出所有数据源 (适用于特定版本)"""
+        return manager.list_datasources()
+
+    
+    @router.post(prefix + "/datasources/{name}/connect", tags=["数据源"])
+    async def connect_datasource(name: str, config: ConnectionConfig, connector_type: str = "mysql"):
+        """连接数据源 (适用于特定版本)"""
+        try:
+            connector = create_connector(config, connector_type)
+            manager.register(name, connector)
+            success = await connector.connect()
+            
+            if success:
+                return {"status": "connected", "name": name, "type": connector_type}
+            else:
+                raise HTTPException(status_code=500, detail="Connection failed")
+                
+        except Exception as e:
+            raise HTTPException(status_code=500, detail=str(e))
+
+    
+    @router.get(prefix + "/datasources/{name}/schema", tags=["数据源"])
+    async def get_datasource_schema(name: str):
+        """获取数据源Schema (适用于特定版本)"""
+        connector = manager.get(name)
+        if not connector:
+            raise HTTPException(status_code=404, detail=f"Datasource '{name}' not found")
+        
+        try:
+            schema = await connector.get_schema()
+            return schema
+        except Exception as e:
+            raise HTTPException(status_code=500, detail=str(e))
+
+    
+    @router.post(prefix + "/datasources/{name}/execute", tags=["数据源"])
+    async def execute_sql(name: str, sql_query: str, limit: int = 1000):
+        """在数据源上执行SQL (适用于特定版本)"""
+        connector = manager.get(name)
+        if not connector:
+            raise HTTPException(status_code=404, detail=f"Datasource '{name}' not found")
+        
+        try:
+            result = await connector.execute(sql_query, limit)
+            return result
+        except Exception as e:
+            raise HTTPException(status_code=500, detail=str(e))
+
+    
+    # 添加v2及更高版本特有的高级数据路由
+    @router.post(prefix + "/datasources/{name}/refresh-schema", tags=["Schema"])
+    async def refresh_datasource_schema(name: str):
+        """刷新数据源Schema - v2及以上版本特性"""
+        from app.services.schema_discovery import schema_discovery
+        connector = manager.get(name)
+        if not connector:
+            raise HTTPException(status_code=404, detail=f"Datasource '{name}' not found")
+        
+        try:
+            # 发现数据库结构
+            db_info = await schema_discovery.discover_database(connector)
+            
+            return {
+                "status": "success",
+                "database": schema_discovery.to_dict(db_info)
+            }
+        except Exception as e:
+            raise HTTPException(status_code=500, detail=str(e))
+
+    
+    @router.get(prefix + "/datasources/{name}/schema-detail", tags=["Schema"])
+    async def get_datasource_schema_detail(name: str):
+        """获取数据源详细Schema（带缓存）- v2及以上版本特性"""
+        from app.services.schema_discovery import schema_discovery
+        connector = manager.get(name)
+        if not connector:
+            raise HTTPException(status_code=404, detail=f"Datasource '{name}' not found")
+        
+        try:
+            # 先检查缓存
+            db_name = await connector.get_database_name()
+            cached = schema_discovery.get_schema(db_name)
+            
+            if cached:
+                return schema_discovery.to_dict(cached)
+            
+            # 如果没有缓存，刷新
+            db_info = await schema_discovery.discover_database(connector)
+            return schema_discovery.to_dict(db_info)
+        except Exception as e:
+            raise HTTPException(status_code=500, detail=str(e))
+
+    
+    @router.get(prefix + "/datasources/{name}/tables", tags=["Schema"])
+    async def list_datasource_tables(name: str):
+        """列出数据源的所有表 - v2及以上版本特性"""
+        connector = manager.get(name)
+        if not connector:
+            raise HTTPException(status_code=404, detail=f"Datasource '{name}' not found")
+        
+        try:
+            tables = await connector.get_tables()
+            return {"tables": tables}
+        except Exception as e:
+            raise HTTPException(status_code=500, detail=str(e))
+
+    
+    @router.get(prefix + "/datasources/{name}/tables/{table}/columns", tags=["Schema"])
+    async def list_table_columns(name: str, table: str):
+        """列出表的列信息 - v2及以上版本特性"""
+        connector = manager.get(name)
+        if not connector:
+            raise HTTPException(status_code=404, detail=f"Datasource '{name}' not found")
+        
+        try:
+            columns = await connector.get_columns(table)
+            return columns
+        except Exception as e:
+            raise HTTPException(status_code=500, detail=str(e))
+
+
+# Now add the data source routes to each version
+# V1
+add_datasource_routes_to_router(v1_router, "")
+# V2
+add_datasource_routes_to_router(v2_router, "")
+# V3
+add_datasource_routes_to_router(v3_router, "")
+
+
+# For the setup_versioned_routes function to work properly
+def setup_versioned_routes(app):
+    """
+    Setup all versioned routes in the application
+    """
+    # Add all versioned routers to the app
+    
+    # V1 legacy routes (backwards compatible)
+    app.include_router(v1_router, prefix="/api/v1")
+    
+    # V2 current routes (recommended)
+    app.include_router(v2_router, prefix="/api/v2") 
+    
+    # V3 experimental routes
+    app.include_router(v3_router, prefix="/api/v3")
