@@ -2,6 +2,8 @@
 Schema Discovery Service
 自动发现数据库结构
 """
+from app.core.cache import cache_manager
+
 import logging
 from typing import Dict, List, Any, Optional
 from dataclasses import dataclass, field
@@ -64,6 +66,18 @@ class SchemaDiscovery:
         
         database_name = await connector.get_database_name()
         
+        # 先检查全局缓存是否有Schema信息
+        cached_result = cache_manager.get_cached_schema(database_name)
+        if cached_result:
+            logger.info(f"从缓存获取数据库结构: {len(cached_result.tables)} 个表")
+            return cached_result
+        
+        # 检查本地内存中的缓存
+        local_cached = self.get_schema(database_name)
+        if local_cached:
+            logger.info(f"从本地缓存获取数据库结构: {len(local_cached.tables)} 个表")
+            return local_cached
+        
         # 获取所有表
         tables = await self.discover_tables(connector)
         
@@ -72,10 +86,11 @@ class SchemaDiscovery:
             tables=tables
         )
         
-        # 缓存结果
+        # 将结果缓存到内存和全局缓存
         self._schema_cache[database_name] = database_info
+        cache_manager.cache_schema_result(database_name, database_info)
         
-        logger.info(f"数据库结构发现完成: {len(tables)} 个表")
+
         return database_info
     
     async def discover_tables(self, connector) -> List[TableInfo]:
