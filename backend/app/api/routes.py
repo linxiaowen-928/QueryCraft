@@ -13,8 +13,8 @@ from app.models import (
     ValidateResponse,
     HealthResponse
 )
+from app.core.monitor import perf_metrics, PerformanceMonitor
 from app.services import generator
-from app.config import settings
 from app.connectors import manager, ConnectionConfig, create_connector
 
 router = APIRouter()
@@ -29,6 +29,18 @@ async def health_check():
         llm_provider=settings.llm_provider,
         timestamp=datetime.utcnow().isoformat()
     )
+
+
+@PerformanceMonitor("/generate")
+
+@router.get("/metrics", tags=["性能"])
+async def get_performance_metrics():
+    """获取性能指标"""
+    return {
+        "api_metrics": perf_metrics.get_api_metrics(),
+        "db_metrics": perf_metrics.get_db_metrics(),
+        "overall_stats": perf_metrics.get_overall_stats(),
+    }
 
 
 @router.post("/generate", response_model=GenerateResponse, tags=["SQL生成"])
@@ -151,13 +163,9 @@ async def execute_sql(name: str, sql: str, limit: int = 1000):
     
     try:
         result = await connector.execute(sql, limit)
-        result = await connector.execute(sql, limit)
-        return result
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
 
-# ========== Schema 发现 ==========
-
-
-# ========== Schema 发现 ==========
 from app.services.schema_discovery import schema_discovery
 
 @router.post("/datasources/{name}/refresh-schema", tags=["Schema"])

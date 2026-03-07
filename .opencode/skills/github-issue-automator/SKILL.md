@@ -2,6 +2,18 @@
 
 自动处理 GitHub Issues 的协作 Skill。
 
+## 语言偏好
+
+**所有对话、日志、提交信息都使用中文。**
+
+- 提交信息格式：`feat: 功能描述 (Issue #<number>)`
+- PR 标题：`feat: 功能描述 (Issue #<number>)`
+- PR 描述：使用中文说明
+- 代码注释：使用中文
+- 对话回复：使用中文
+
+---
+
 ## 重要：同一机器多账户隔离
 
 **OpenCode 和 OpenClaw 在同一台机器上，但使用不同的 GitHub 账户！**
@@ -78,6 +90,31 @@ gh auth login -p ssh -h github.com
 ```
 
 ## 使用方法
+
+### ⚠️ 重要：启动自动化的正确方式
+
+**当收到 /ulw-loop、心跳或任何触发命令时，必须执行以下命令：**
+
+```bash
+cd ~/code/QueryCraft/.opencode/skills/github-issue-automator
+node cli.js check
+```
+
+**可用的 CLI 命令：**
+
+| 命令 | 说明 |
+|------|------|
+| `node cli.js check` | 检查并处理待处理的 Issues |
+| `node cli.js status` | 查看 skill 状态 |
+| `node cli.js list` | 列出待处理的 Issues |
+| `node cli.js work <number>` | 处理指定的 Issue |
+
+**❌ 不要自己用 `gh issue list --label ...` 查询！**
+
+原因：`gh issue list --label "a,b,c"` 是 AND 逻辑，而 skill 需要的是 OR 逻辑。
+skill 的 `node cli.js check` 会正确处理这个逻辑。
+
+---
 
 ### 每次工作前必须验证身份
 

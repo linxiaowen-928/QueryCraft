@@ -1,3 +1,6 @@
+from app.core.monitor import perf_metrics, monitor_llm_call
+from app.core.cache import cache_manager
+import asyncio
 """
 SQL生成服务
 """
@@ -29,6 +32,20 @@ class SQLGenerator:
         
         start_time = time.time()
         
+        # 检查缓存中是否有相同请求的结果
+        cached_result = cache_manager.cache_llm_call(query, dialect, schema_info)
+        
+        if cached_result:
+            duration_ms = int((time.time() - start_time) * 1000)
+            # 返回从缓存中获取的结果
+            return {
+                "success": True,
+                "sql": cached_result,
+                "confidence": self._calculate_confidence(cached_result, schema_info),
+                "explanation": self._generate_explanation(cached_result, query),
+                "duration_ms": duration_ms
+            }
+        
         try:
             # 构建提示词
             system_prompt = self._build_system_prompt(dialect, schema_info, context)
@@ -45,13 +62,19 @@ class SQLGenerator:
             
             duration_ms = int((time.time() - start_time) * 1000)
             
-            return {
+            result = {
                 "success": True,
                 "sql": sql,
                 "confidence": self._calculate_confidence(sql, schema_info),
                 "explanation": self._generate_explanation(sql, query),
                 "duration_ms": duration_ms
             }
+            
+            # 如果得到了新结果，将其存储在缓存中
+            if result.get("success") and result.get("sql"):
+                cache_manager.store_llm_result(query, dialect, sql, schema_info)
+            
+            return result
             
         except Exception as e:
             return {
@@ -129,6 +152,7 @@ class SQLGenerator:
         
         return "\n\n".join(result)
     
+    @monitor_llm_call
     async def _call_llm(self, system_prompt: str, user_prompt: str) -> str:
         """调用LLM API - 支持 ZhipuAI"""
         

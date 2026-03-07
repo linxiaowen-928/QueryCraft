@@ -1,10 +1,19 @@
 """
 MySQL 连接器
 """
+import asyncio
+from asyncio import Semaphore
 
 import aiomysql
 from typing import Dict, Any, List, Optional
 import time
+# 添加连接信号量，控制并发连接数
+MAX_CONNECTIONS = 20  # 最大并发数据库连接数
+CONNECTION_SEMAPHORE = Semaphore(MAX_CONNECTIONS)
+# 连接统计计数器
+active_connections = 0
+peak_connections = 0
+
 
 from .base import BaseConnector, ConnectionConfig, QueryResult
 
@@ -29,9 +38,11 @@ class MySQLConnector(BaseConnector):
                 user=self.config.username,
                 password=self.config.password,
                 db=self.config.database,
-                minsize=1,
-                maxsize=10,
-                autocommit=True
+                minsize=5,  # 从1改为5，增加最小连接数
+                maxsize=20,  # 从10改为20，增加最大连接数
+                pool_recycle=3600,  # 添加连接回收周期（1小时）
+                pool_timeout=10,  # 添加连接超时
+                loop=None # 使用默认事件循环
             )
             self.connected = True
             return True
@@ -99,39 +110,45 @@ class MySQLConnector(BaseConnector):
         
         start_time = time.time()
         
-        try:
-            async with self.pool.acquire() as conn:
-                async with conn.cursor() as cur:
-                    # 设置限制
-                    await cur.execute(f"SET SESSION max_rows = {limit}")
-                    
-                    # 执行查询
-                    await cur.execute(sql)
-                    
-                    # 获取列名
-                    if cur.description:
-                        columns = [desc[0] for desc in cur.description]
-                    else:
-                        columns = []
-                    
-                    # 获取数据
-                    rows_raw = await cur.fetchmany(limit)
-                    rows = [dict(zip(columns, row)) for row in rows_raw]
-                    
-                    return QueryResult(
-                        success=True,
-                        columns=columns,
-                        rows=rows,
-                        total_rows=len(rows),
-                        execution_time_ms=int((time.time() - start_time) * 1000)
-                    )
-                    
-        except Exception as e:
-            return QueryResult(
-                success=False,
-                error=str(e),
-                execution_time_ms=int((time.time() - start_time) * 1000)
-            )
+        # 使用模块级别的连接信号量控制并发
+        async with CONNECTION_SEMAPHORE:  # 控制最大并发连接数
+            try:
+                async with self.pool.acquire() as conn:
+                    async with conn.cursor(aiomysql.DictCursor) as cur:  # 使用字典游标提高数据处理效率
+                        # 设置限制
+                        await cur.execute(f"SET SESSION max_rows = {limit}")
+                        
+                        # 执行查询
+                        await cur.execute(sql)
+                        
+                        # 获取列名
+                        if cur.description:
+                            columns = [desc[0] for desc in cur.description]
+                        else:
+                            columns = []
+                        
+                        # 一次性批量获取所有数据，而不是分批获取
+                        rows = await cur.fetchall()
+                        if limit and len(rows) > limit:
+                            rows = rows[:limit]
+                        
+                        # 将结果转换为字典列表（已在游标层面完成）
+                        rows_as_dicts = [dict(row) for row in rows]
+                        
+                        return QueryResult(
+                            success=True,
+                            columns=columns,
+                            rows=rows_as_dicts,
+                            total_rows=len(rows_as_dicts),
+                            execution_time_ms=int((time.time() - start_time) * 1000)
+                        )
+                        
+            except Exception as e:
+                return QueryResult(
+                    success=False,
+                    error=str(e),
+                    execution_time_ms=int((time.time() - start_time) * 1000)
+                )
     
     async def close(self):
         """关闭连接池"""
