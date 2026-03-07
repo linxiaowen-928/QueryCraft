@@ -7,3 +7,5 @@ sqlalchemy>=2.0.0
 aiomysql>=0.2.0
 asyncpg>=0.28.0
 python-dotenv>=1.0.0
+aiomonitor>=0.4.2
+psutil>=5.8.0
